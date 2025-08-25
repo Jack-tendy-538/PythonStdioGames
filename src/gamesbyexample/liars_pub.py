@@ -1,56 +1,81 @@
-"""
-This file isn't part of the Jack Tendy project.
-This is a game that was created by a user named Jack Tendy.
-This file is part of the Liars Pub game, which is a simple text-based game
+import random
+import time
 
-All the code should be styled according to Al Sweigart's style guide.
-"""
-import random, sys, time
-# Python 2 compatibility for input (remove if only supporting Python 3)
-if sys.version_info[0] < 3:
-    try:
-        input = raw_input
-    except NameError:
-        pass
+# 全局变量
+target = None  # 目标牌
+gun_chamber = []  # 左轮手枪弹巢
+gun_index = 0  # 当前子弹位置
+players = []  # 玩家列表
+active_players = []  # 活跃玩家列表（未被淘汰的玩家）
+player_hands = {}  # 玩家手牌
+current_player_index = 0  # 当前玩家索引
+deck = []  # 牌堆
 
-# cards
-card_img = {
-    "J": [r"|--------|",
-          r"|    |   |",
-          r"|    |   |",
-          r"|  __|   |",
-          r"|________|"],
-    "Q": [r"|--------|",
-          r"|   __   |",
-          r"|  |__|  |",
-          r"|     \  |",
-          r"|________|"],
-    "K": [r"|--------|",
-          r"|  | /   |",
-          r"|  |<    |",
-          r"|  | \   |",
-          r"|________|"],
-    "A": [r"|--------|",
-          r"|   /\   |",
-          r"|  /--\  |",
-          r"| |    | |",
-          r"|________|"],
-    "JOKER": [r"|--------|",  # JOKER can be represented as O
-              r"|  O  |JO|",
-              r"| /|\ |KE|",
-              r"| / \ |R`|",
-              r"|________|"]
-}
+def reset_deck():
+    """重置并洗牌"""
+    global deck
+    deck = ["J"] * 4 + ["Q"] * 4 + ["K"] * 4 + ["A"] * 4 + ["O"] * 4
+    random.shuffle(deck)
 
-CARD_GAP = "  "
-def display_cards(cards):
-    """Display the cards in a list of cards."""
-    rows = [""] * 5
-    for card in cards:
-        for i in range(5):
-            rows[i] += card_img[card][i] + CARD_GAP
-    for row in rows:
-        print(row)
+def deal_cards():
+    """发牌给所有活跃玩家"""
+    global player_hands, deck
+    
+    # 如果牌堆不够，重新洗牌
+    if len(deck) < len(active_players) * 5:
+        reset_deck()
+    
+    # 给每个活跃玩家发5张牌
+    for player in active_players:
+        if len(player_hands[player]) == 0:  # 只给没有牌的玩家发牌
+            player_hands[player] = [deck.pop() for _ in range(min(5, len(deck)))]
+
+def init_gun():
+    """初始化左轮手枪"""
+    global gun_chamber, gun_index
+    gun_chamber = [False, False, False, False, False, True]
+    random.shuffle(gun_chamber)
+    gun_index = 0
+
+def show_instructions():
+    """Display the instructions for the game."""
+    print('''Liars Pub, by Jack Tendy.
+A simple card game for 4 players.
+The goal is to live the last.
+Rules:
+- Each player is dealt 5 cards.
+- Players take turns playing cards face down and declaring their rank (J, Q, K, A, O).
+- Other players can challenge the declaration.
+- If the declaration is true, the challenger gets the gun shoot.
+- If the declaration is false, the declarer gets the gun shoot.
+- When one player has no cards left, refill their hand from the deck.
+- The gun has 6 bullets, 1 full and 5 empty..
+- When the gun is shot, if it's a full bullet, the player is out.
+- The last player remaining wins the game.
+- Press Enter to continue...''')
+    input()
+
+
+def shoot():
+    """开枪，返回是否击中"""
+    global gun_index, gun_chamber
+    
+    is_hit = gun_chamber[gun_index]
+    gun_index = (gun_index + 1) % 6
+    
+    # 如果已经用完所有子弹，重新装填
+    if gun_index == 0:
+        random.shuffle(gun_chamber)
+    
+    return is_hit
+
+def is_false_declaration(played_cards):
+    """检查声明是否虚假"""
+    global target
+    for card in played_cards:
+        if card != target and card != "O":  # 如果不是目标牌也不是Joker
+            return True
+    return False
 
 def shoot_at(player, is_killed):
     """ Draw a gun and shoot at the player. 
@@ -65,6 +90,8 @@ def shoot_at(player, is_killed):
     print("~  /  |______________|ˉˉ",flush=True)
     print('~ /  /',flush=True)
     print("~|_|_|",flush=True)
+
+
 
 def show_remains(remain_dict,last_player,last_action):
     """Show the remaining players and their num of cards, one per row.
@@ -91,159 +118,112 @@ def show_remains(remain_dict,last_player,last_action):
         else:
             print(f"{player}: (out)")
 
-def _is_false_declaration():
-    global last_played_cards, target
-    """Check if the last declaration is false."""
-    for card in last_played_cards:
-        if card != target and card != "O":
-            return True
-    return False
-
-def show_instructions():
-    """Display the instructions for the game."""
-    print('''Liars Pub, by Jack Tendy.
-A simple card game for 4 players.
-The goal is to live the last.
-Rules:
-- Each player is dealt 5 cards.
-- Players take turns playing cards face down and declaring their rank (J, Q, K, A, O).
-- Other players can challenge the declaration.
-- If the declaration is true, the challenger gets the gun shoot.
-- If the declaration is false, the declarer gets the gun shoot.
-- When one player has no cards left, refill their hand from the deck.
-- The gun has 6 bullets, 1 full and 5 empty..
-- When the gun is shot, if it's a full bullet, the player is out.
-- The last player remaining wins the game.
-- Press Enter to continue...''')
-    input()
-
-# the following code uses generators to manage the game flow, and coroutines to handle player actions.
-def gen_gun():
-    """A generator that yields True for a full bullet and False for an empty bullet.
-    """
-    while True:
-        bullet_chamber = [False, False, False, False, False, True]
-        random.shuffle(bullet_chamber)
-        for chamber in bullet_chamber:
-            yield chamber
-
-def reset_deck(players):
-    """Reset and shuffle the deck, return a list of cards."""
-    deck = ["J"] * 4 + ["Q"] * 4 + ["K"] * 4 + ["A"] * 4 + ["O"] * 4
-    random.shuffle(deck)
-    return {player: [deck.pop() for _ in range(5)] for player in players}
-def gen_pub(players):
-    """A generator that manages the game flow"""
-    # 初始化牌堆和玩家手牌
-    deck = ["J"] * 4 + ["Q"] * 4 + ["K"] * 4 + ["A"] * 4 + ["O"] * 4
-    random.shuffle(deck)
-    remains = {player: [deck.pop() for _ in range(5)] for player in players}
+def get_next_player():
+    """获取下一个活跃玩家"""
+    global current_player_index, active_players
     
-    index = 0
+    if len(active_players) <= 1:
+        return current_player_index
+    
+    # 找到下一个活跃玩家
+    next_index = (current_player_index + 1) % len(active_players)
+    return next_index
+
+def check_win_condition():
+    """检查是否满足胜利条件"""
+    return len(active_players) == 1, active_players[0] if len(active_players) == 1 else None
+
+def get_player_input(player, hand):
+    """获取玩家输入"""
+    print(f"\n{player}'s turn. Your cards: {', '.join(hand)}")
+    
+    # 获取出牌数量
     while True:
-        name = players[index]
-        
-        # 检查当前玩家是否有牌，如果没有则重新洗牌
-        if not remains[name]:
-            # 重新洗牌并给所有玩家发牌
-            deck = ["J"] * 4 + ["Q"] * 4 + ["K"] * 4 + ["A"] * 4 + ["O"] * 4
-            random.shuffle(deck)
-            for player in players:
-                if remains[player]:  # 如果玩家还有牌，保留他们的牌
-                    # 只给没有牌的玩家发牌
-                    if not remains[player]:
-                        remains[player] = [deck.pop() for _ in range(5)]
-        
-        feedback = yield name, remains
-        if feedback is None:
-            continue
+        try:
+            num_to_play = int(input("How many cards do you want to play? (1-2): "))
+            if 1 <= num_to_play <= 2 and num_to_play <= len(hand):
+                break
+            else:
+                print("Invalid input. Please enter 1 or 2, and make sure you have enough cards.")
+        except ValueError:
+            print("Please enter a valid number.")
+    
+    # 获取要出的牌
+    print("Select cards to play (enter the card letters, separated by spaces):")
+    print("Available cards:", ", ".join(hand))
+    
+    while True:
+        try:
+            selected_cards = input().strip().upper().split()
+            # 验证输入
+            if len(selected_cards) != num_to_play:
+                print(f"Please select exactly {num_to_play} card(s).")
+                continue
             
-        if feedback[0] == "shoot":
-            # shoot at the player
-            is_killed = feedback[1]
-            if is_killed:
-                remains[name] = []
-                if sum(1 for cards in remains.values() if cards) == 1:
-                    # only one player left
-                    winner = [player for player, cards in remains.items() if cards][0]
-                    yield "win", winner
-                    return
-        elif feedback[0] == "put":
-            # put out cards
-            num, cards, target = feedback[1], feedback[2], feedback[3]
-            for card in cards:
-                remains[name].remove(card)
+            # 检查所选牌是否在手牌中
+            valid_selection = True
+            temp_hand = hand.copy()
+            for card in selected_cards:
+                if card in temp_hand:
+                    temp_hand.remove(card)
+                else:
+                    print(f"Card {card} is not in your hand or has already been selected.")
+                    valid_selection = False
+                    break
             
-            # 检查是否需要重新洗牌（任何玩家手牌为空）
-            if any(not cards for cards in remains.values()):
-                # 重新洗牌并给所有玩家发牌
-                deck = ["J"] * 4 + ["Q"] * 4 + ["K"] * 4 + ["A"] * 4 + ["O"] * 4
-                random.shuffle(deck)
-                for player in players:
-                    if not remains[player]:  # 只给没有牌的玩家发牌
-                        remains[player] = [deck.pop() for _ in range(5)]
-        
-        index = (index + 1) % len(players)
-
-
-def get_players_name():
-    """Get player names from input."""
-    players = []
-    for i in range(4):
-        name = input(f"Enter name for Player {i+1} (or press Enter for default 'Player{i+1}'): \n")
-        if not name.strip():
-            name = f"Player{i+1}"
-        players.append(name)
-    return players
+            if valid_selection:
+                return selected_cards
+        except Exception as e:
+            print("Invalid input. Please try again.")
 
 def main():
     """主函数，运行骗子酒馆游戏"""
-    global target, last_played_cards
-    print("Welcome to Liars Pub!")
+    global target, players, active_players, player_hands, current_player_index, deck
+    
     # 显示游戏说明
     show_instructions()
     
     # 初始化玩家
     players = ["Player1", "Player2", "Player3", "Player4"]
-    # 初始化游戏状态生成器
-    game = gen_pub(players)
-    # 初始化左轮手枪生成器
-    gun = gen_gun()
+    active_players = players.copy()
+    player_hands = {player: [] for player in players}
+    
+    # 初始化牌堆和发牌
+    reset_deck()
+    deal_cards()
+    
+    # 初始化左轮手枪
+    init_gun()
     
     # 随机选择目标牌
-    global target
     target = random.choice(["J", "Q", "K", "A"])
     print(f"\n本局游戏的目标牌是: {target}")
     
-    # 获取初始游戏状态
-    current_player, remains = next(game)
+    # 游戏主循环
+    game_over = False
+    winner = None
     last_player = None
     last_action = None
-    last_played_cards = []
     
-    # 游戏主循环
-    while True:
-        print(f"\n===== {current_player}'s turn =====")
+    while not game_over:
+        current_player = active_players[current_player_index]
         
-        # 显示当前玩家手牌
-        print(f"Your cards: {', '.join(remains[current_player])}")
+        # 如果当前玩家没有牌，重新发牌
+        if len(player_hands[current_player]) == 0:
+            deal_cards()
+            # 如果重新发牌后仍然没有牌，可能是牌堆空了
+            if len(player_hands[current_player]) == 0:
+                print(f"{current_player} has no cards to play! Skipping turn.")
+                current_player_index = get_next_player()
+                continue
         
-        # 检查玩家是否有牌可出
-        if not remains[current_player]:
-            print(f"{current_player} has no cards to play! Refilling...")
-            # 发送一个空操作以触发重新洗牌
-            result = game.send(("pass", None))
-            if result and result[0] == "win":
-                print(f"\n🎉 Game Over! {result[1]} wins! 🎉")
-                break
-            else:
-                current_player, remains = result
-            continue
-            
-        # 玩家选择出牌数量 (简化: 随机出1-2张)
-        num_to_play = random.randint(1, min(2, len(remains[current_player])))
-        cards_to_play = random.sample(remains[current_player], num_to_play)
-        last_played_cards = cards_to_play.copy()
+        # 获取玩家输入
+        cards_to_play = get_player_input(current_player, player_hands[current_player])
+        num_to_play = len(cards_to_play)
+        
+        # 从手牌中移除这些牌
+        for card in cards_to_play:
+            player_hands[current_player].remove(card)
         
         # 玩家声明出牌 (总是声明为目标牌)
         print(f"{current_player} plays {num_to_play} card(s) and declares: 'These are all {target}s!'")
@@ -253,59 +233,55 @@ def main():
         last_player = current_player
         
         # 只有下家可以挑战
-        next_player_index = (players.index(current_player) + 1) % len(players)
-        next_player = players[next_player_index]
+        next_player_index = get_next_player()
+        next_player = active_players[next_player_index]
         
-        # 检查下家是否还在游戏中
-        if remains.get(next_player):  # 使用get方法避免KeyError
-            # 下家决定是否挑战 (简化: 有一定概率挑战)
-            will_challenge = random.random() < 0.4  # 40%概率挑战
+        # 下家决定是否挑战
+        challenge = input(f"{next_player}, do you challenge? (y/n): ").strip().lower()
+        will_challenge = challenge == 'y'
+        
+        if will_challenge:
+            print(f"{next_player} challenges the declaration!")
             
-            if will_challenge:
-                print(f"{next_player} challenges the declaration!")
-                
-                # 验证声明
-                is_truthful = not _is_false_declaration()
-                
-                if is_truthful:
-                    print("The declaration was truthful!")
-                    loser = next_player
-                else:
-                    print("The declaration was a lie!")
-                    loser = current_player
-                
-                # 执行枪击
-                print(f"\nShooting at {loser}...")
-                time.sleep(1)  # 增加 suspense
-                
-                is_dead = next(gun)
-                shoot_at(loser, is_dead)
-                
-                # 更新游戏状态
-                result = game.send(("shoot", is_dead))
-                
-                if result and result[0] == "win":
-                    print(f"\n🎉 Game Over! {result[1]} wins! 🎉")
-                    break
+            # 验证声明
+            declaration_false = is_false_declaration(cards_to_play)
+            
+            if not declaration_false:
+                print("The declaration was truthful!")
+                loser = next_player
             else:
-                print(f"{next_player} does not challenge.")
-                # 正常出牌，更新游戏状态
-                result = game.send(("put", num_to_play, cards_to_play, target))
+                print("The declaration was a lie!")
+                loser = current_player
+            
+            # 执行枪击
+            print(f"\nShooting at {loser}...")
+            time.sleep(1)  # 增加 suspense
+            
+            is_dead = shoot()
+            shoot_at(loser, is_dead)
+            
+            # 如果被击中，移除该玩家
+            if is_dead:
+                print(f"{loser} is eliminated from the game!")
+                active_players.remove(loser)
+                player_hands[loser] = []
+                
+                # 检查游戏是否结束
+                game_over, winner = check_win_condition()
+                if game_over:
+                    break
         else:
-            print(f"{next_player} is out, no one to challenge.")
-            # 正常出牌，更新游戏状态
-            result = game.send(("put", num_to_play, cards_to_play, target))
+            print(f"{next_player} does not challenge.")
         
         # 显示当前游戏状态
         print("\nCurrent game status:")
-        show_remains(remains, last_player, last_action)
+        show_remains(player_hands, last_player, last_action)
         
-        # 获取下一个玩家
-        if result and result[0] == "win":
-            print(f"\n🎉 Game Over! {result[1]} wins! 🎉")
-            break
-        else:
-            current_player, remains = result
+        # 移动到下一个玩家
+        current_player_index = get_next_player()
+    
+    # 游戏结束
+    print(f"\n🎉 Game Over! {winner} wins! 🎉")
 
 if __name__ == "__main__":
     main()
