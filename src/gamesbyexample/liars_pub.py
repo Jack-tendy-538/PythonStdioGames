@@ -176,6 +176,16 @@ def get_player_input(player, hand):
         except Exception as e:
             print("Invalid input. Please try again.")
 
+def get_player_name():
+    responses = []
+    max_len = 0
+    for i in range(4):
+        # get the player's name
+        name = input('#player %d \d'%(i+1)).title()
+        if len(name) > max_len:
+            max_len = len(name)
+    return [name.ljust(max_len) for name in responses]
+
 def main():
     """主函数，运行骗子酒馆游戏"""
     global target, players, active_players, player_hands, current_player_index, deck
@@ -184,7 +194,7 @@ def main():
     show_instructions()
     
     # 初始化玩家
-    players = ["Player1", "Player2", "Player3", "Player4"]
+    players = get_player_name()
     active_players = players.copy()
     player_hands = {player: [] for player in players}
     
@@ -197,7 +207,7 @@ def main():
     
     # 随机选择目标牌
     target = random.choice(["J", "Q", "K", "A"])
-    print(f"\n本局游戏的目标牌是: {target}")
+    print(f"\n The target of this game is: {target}")
     
     # 游戏主循环
     game_over = False
@@ -226,6 +236,7 @@ def main():
             player_hands[current_player].remove(card)
         
         # 玩家声明出牌 (总是声明为目标牌)
+        print('\n'*15, flush=True)
         print(f"{current_player} plays {num_to_play} card(s) and declares: 'These are all {target}s!'")
         
         # 记录最后动作
@@ -285,3 +296,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
