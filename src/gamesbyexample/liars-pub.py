@@ -191,7 +191,8 @@ def main():
     global target, players, active_players, player_hands, current_player_index, deck
     
     # 显示游戏说明
-    show_instructions()
+    if input('Want to view instructions?[y/n]')[0].lower() == 'y':
+        show_instructions()
     
     # 初始化玩家
     players = get_player_name()
@@ -296,4 +297,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
