@@ -10,6 +10,55 @@ active_players = []  # 活跃玩家列表（未被淘汰的玩家）
 player_hands = {}  # 玩家手牌
 current_player_index = 0  # 当前玩家索引
 deck = []  # 牌堆
+max_len = 0
+
+import random, sys, time
+# Python 2 compatibility for input (remove if only supporting Python 3)
+if sys.version_info[0] < 3:
+    try:
+        input = raw_input
+    except NameError:
+        pass
+
+# cards
+card_img = {
+    "J": [r"|--------|",
+          r"|    |   |",
+          r"|    |   |",
+          r"|  __|   |",
+          r"|________|"],
+    "Q": [r"|--------|",
+          r"|   __   |",
+          r"|  |__|  |",
+          r"|     \  |",
+          r"|________|"],
+    "K": [r"|--------|",
+          r"|  | /   |",
+          r"|  |<    |",
+          r"|  | \   |",
+          r"|________|"],
+    "A": [r"|--------|",
+          r"|   /\   |",
+          r"|  /--\  |",
+          r"| |    | |",
+          r"|________|"],
+    "O": [r"|--------|",  # JOKER can be represented as O
+              r"|  O  |JO|",
+              r"| /|\ |KE|",
+              r"| / \ |R`|",
+              r"|________|"]
+}
+
+CARD_GAP = "  "
+def display_cards(cards):
+    """Display the cards in a list of cards."""
+    rows = [""] * 5
+    for card in cards:
+        for i in range(5):
+            rows[i] += card_img[card][i] + CARD_GAP
+    for row in rows:
+        print(row)
+
 
 def reset_deck():
     """重置并洗牌"""
@@ -81,15 +130,15 @@ def shoot_at(player, is_killed):
     """ Draw a gun and shoot at the player. 
     If is_killed is True, the player is killed.
     """
-    print("~    |\ ____________  _",flush=True)
-    print("~   / |_____________||",end="",flush=True)
+    print(r"~    |\ ____________  _",flush=True)
+    print(r"~   / |_____________||",end="",flush=True)
     if is_killed:
         print("■> "+player+" is killed! > x <",flush=True)
     else:
         print(" > "+player+" is safe! ^ _ ^",flush=True)
-    print("~  /  |______________|ˉˉ",flush=True)
-    print('~ /  /',flush=True)
-    print("~|_|_|",flush=True)
+    print(r"~  /  |______________|ˉˉ",flush=True)
+    print(r'~ /  /',flush=True)
+    print(r"~|_|_|",flush=True)
 
 
 
@@ -103,6 +152,7 @@ def show_remains(remain_dict,last_player,last_action):
     if last_player and last_action are not None,
       show the last action at his row of the output(Who has put out how many cards).
     """
+    global max_len
     for player, num in remain_dict.items():
         print("# ",end="")  # to flush the output buffer
         if isinstance(num, list):
@@ -112,9 +162,9 @@ def show_remains(remain_dict,last_player,last_action):
         if card_count > 0:
             cards = "o " * card_count
             if player == last_player and last_action is not None:
-                print(f"{player}: {cards} <- {last_player} {last_action}")
+                print(f"{player.ljust(max_len)}: {cards} <- {last_player} {last_action}")
             else:
-                print(f"{player}: {cards}")
+                print(f"{player.ljust(max_len)}: {cards}")
         else:
             print(f"{player}: (out)")
 
@@ -129,13 +179,26 @@ def get_next_player():
     next_index = (current_player_index + 1) % len(active_players)
     return next_index
 
+def get_player_name():
+    responses = []
+    max_len = 0
+    for i in range(4):
+        # get the player's name
+        name = input('#player %d \n'%(i+1)).title()
+        if len(name) > max_len:
+            max_len = len(name)
+        responses.append(name)
+    return max_len, responses
+
 def check_win_condition():
     """检查是否满足胜利条件"""
     return len(active_players) == 1, active_players[0] if len(active_players) == 1 else None
 
 def get_player_input(player, hand):
     """获取玩家输入"""
-    print(f"\n{player}'s turn. Your cards: {', '.join(hand)}")
+    input('Turn for %s. Press Enter to continue...'%player)
+    print(f"\n{player}'s turn. Your cards: ")
+    display_cards(hand)
     
     # 获取出牌数量
     while True:
@@ -175,27 +238,17 @@ def get_player_input(player, hand):
                 return selected_cards
         except Exception as e:
             print("Invalid input. Please try again.")
-
-def get_player_name():
-    responses = []
-    max_len = 0
-    for i in range(4):
-        # get the player's name
-        name = input('#player %d \d'%(i+1)).title()
-        if len(name) > max_len:
-            max_len = len(name)
-    return [name.ljust(max_len) for name in responses]
+    print('\n'*25,flush=True)
 
 def main():
     """主函数，运行骗子酒馆游戏"""
-    global target, players, active_players, player_hands, current_player_index, deck
+    global target, players, active_players, player_hands, current_player_index, deck, max_len
     
     # 显示游戏说明
-    if input('Want to view instructions?[y/n]')[0].lower() == 'y':
-        show_instructions()
+    show_instructions()
     
     # 初始化玩家
-    players = get_player_name()
+    max_len, players = get_player_name()
     active_players = players.copy()
     player_hands = {player: [] for player in players}
     
@@ -208,7 +261,7 @@ def main():
     
     # 随机选择目标牌
     target = random.choice(["J", "Q", "K", "A"])
-    print(f"\n The target of this game is: {target}")
+    print(f"\nThe target of this game is: {target}")
     
     # 游戏主循环
     game_over = False
@@ -237,7 +290,6 @@ def main():
             player_hands[current_player].remove(card)
         
         # 玩家声明出牌 (总是声明为目标牌)
-        print('\n'*15, flush=True)
         print(f"{current_player} plays {num_to_play} card(s) and declares: 'These are all {target}s!'")
         
         # 记录最后动作
@@ -295,7 +347,5 @@ def main():
     # 游戏结束
     print(f"\n🎉 Game Over! {winner} wins! 🎉")
 
-if __name__ == "__main__":
-    main()
 
-
+main()
