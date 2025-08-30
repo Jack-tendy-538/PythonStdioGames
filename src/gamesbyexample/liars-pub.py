@@ -195,34 +195,21 @@ def check_win_condition():
     return len(active_players) == 1, active_players[0] if len(active_players) == 1 else None
 
 def get_player_input(player, hand):
-    """获取玩家输入"""
-    input('Turn for %s. Press Enter to continue...'%player)
+    """获取玩家输入（直接输入牌，不限制数量）"""
+    input('Turn for %s. Press Enter to continue...' % player)
     print(f"\n{player}'s turn. Your cards: ")
     display_cards(hand)
-    
-    # 获取出牌数量
-    while True:
-        try:
-            num_to_play = int(input("How many cards do you want to play? (1-2): "))
-            if 1 <= num_to_play <= 2 and num_to_play <= len(hand):
-                break
-            else:
-                print("Invalid input. Please enter 1 or 2, and make sure you have enough cards.")
-        except ValueError:
-            print("Please enter a valid number.")
-    
-    # 获取要出的牌
+
     print("Select cards to play (enter the card letters, separated by spaces):")
     print("Available cards:", ", ".join(hand))
-    
+
     while True:
         try:
-            selected_cards = input().strip().upper().split()
-            # 验证输入
-            if len(selected_cards) != num_to_play:
-                print(f"Please select exactly {num_to_play} card(s).")
+            selected_cards = list(input().strip().upper())
+            if not selected_cards:
+                print("You must select at least one card.")
                 continue
-            
+
             # 检查所选牌是否在手牌中
             valid_selection = True
             temp_hand = hand.copy()
@@ -233,12 +220,12 @@ def get_player_input(player, hand):
                     print(f"Card {card} is not in your hand or has already been selected.")
                     valid_selection = False
                     break
-            
+
             if valid_selection:
                 return selected_cards
         except Exception as e:
             print("Invalid input. Please try again.")
-    print('\n'*25,flush=True)
+    print('\n' * 50, flush=True)
 
 def main():
     """主函数，运行骗子酒馆游戏"""
@@ -290,6 +277,7 @@ def main():
             player_hands[current_player].remove(card)
         
         # 玩家声明出牌 (总是声明为目标牌)
+        print('\n'*30, flush=True)
         print(f"{current_player} plays {num_to_play} card(s) and declares: 'These are all {target}s!'")
         
         # 记录最后动作
